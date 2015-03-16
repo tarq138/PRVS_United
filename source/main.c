@@ -23,6 +23,20 @@ int main() {
 	RST_CLK_CPUclkSelection(RST_CLK_CPUclkCPU_C3);							// Select CPU_C3 clock on the CPU clock MUX
 	// ----------------------
 	
+	// Настройка NVIC
+	SCB->AIRCR = 0x05FA0000 | ((uint32_t)0x500);
+	SCB->VTOR = 0x08000000;
+	// --------------
+	
+	// Выключаем все прерывания
+	NVIC->ICPR[0] = 0xFFFFFFFF;
+	NVIC->ICER[0] = 0xFFFFFFFF;
+	// ------------------------
+	
+	// Настройка прерываний
+	NVIC->ISER[0] = (1<<ADC_IRQn);											// Enable ADC interrupt
+	// --------------------
+	
 	// Настройка тактирования периферии
 	RST_CLK_PCLKcmd(RST_CLK_PCLK_PORTD, ENABLE);							// Enables the RTCHSE clock on PORTD
 	RST_CLK_PCLKcmd(RST_CLK_PCLK_ADC, ENABLE);								// Enables the RTCHSE clock on ADC
@@ -30,26 +44,31 @@ int main() {
 	// --------------------------------
 	
 	// Настройка портов
+	PORT_DeInit(MDR_PORTD);
 	PORT_StructInit(&port);
-	port.PORT_Pin 				= PORT_Pin_10;
-	port.PORT_OE 				= PORT_OE_OUT;
-	port.PORT_FUNC 				= PORT_FUNC_PORT;
-	port.PORT_MODE 				= PORT_MODE_DIGITAL;
-	port.PORT_SPEED 			= PORT_SPEED_MAXFAST;
+	
+	port.PORT_Pin   = PORT_Pin_7;
+	port.PORT_OE    = PORT_OE_IN;
+	port.PORT_MODE  = PORT_MODE_ANALOG;
+	PORT_Init(MDR_PORTD, &port);
+	
+	port.PORT_Pin 	= PORT_Pin_10;
+	port.PORT_OE 	= PORT_OE_OUT;
+	port.PORT_FUNC 	= PORT_FUNC_PORT;
+	port.PORT_MODE 	= PORT_MODE_DIGITAL;
+	port.PORT_SPEED = PORT_SPEED_MAXFAST;
 	PORT_Init(MDR_PORTD, &port);
 	// ----------------
 	
 	// Настройка АЦП
-	ADC_DeInit();				// Reset all ADC settings
+	ADC_DeInit();															// Reset all ADC settings
 	ADC_StructInit(&sADC);
 	
 	sADC.ADC_SynchronousMode      = ADC_SyncMode_Synchronous;
 	sADC.ADC_StartDelay           = 0;
 	sADC.ADC_TempSensor           = ADC_TEMP_SENSOR_Enable;
 	sADC.ADC_TempSensorAmplifier  = ADC_TEMP_SENSOR_AMPLIFIER_Enable;
-	sADC.ADC_TempSensorConversion = ADC_TEMP_SENSOR_CONVERSION_Enable;
-	sADC.ADC_IntVRefConversion    = ADC_VREF_CONVERSION_Disable;
-	sADC.ADC_IntVRefTrimming      = 1;
+	sADC.ADC_IntVRefConversion    = ADC_VREF_CONVERSION_Enable;
 	
 	ADC_Init(&sADC);
 	
@@ -58,26 +77,23 @@ int main() {
 	
 	sADCx.ADC_ClockSource      = ADC_CLOCK_SOURCE_CPU;
 	sADCx.ADC_SamplingMode     = ADC_SAMPLING_MODE_CICLIC_CONV;
-	// sADCx.ADC_SamplingMode     = ADC_SAMPLING_MODE_SINGLE_CONV;
 	sADCx.ADC_ChannelSwitching = ADC_CH_SWITCHING_Disable;
-	sADCx.ADC_ChannelNumber    = ADC_CH_TEMP_SENSOR;
+	sADCx.ADC_ChannelNumber    = ADC_CH_INT_VREF;
 	sADCx.ADC_Channels         = 0;
 	sADCx.ADC_LevelControl     = ADC_LEVEL_CONTROL_Disable;
 	sADCx.ADC_LowLevel         = 0;
 	sADCx.ADC_HighLevel        = 0;
-	sADCx.ADC_VRefSource       = ADC_VREF_SOURCE_INTERNAL;
-	sADCx.ADC_IntVRefSource    = ADC_INT_VREF_SOURCE_INEXACT;
+	sADCx.ADC_VRefSource       = ADC_VREF_SOURCE_INTERNAL;					// выбор источника опорного напряжения от AUсс и AGND
+	sADCx.ADC_IntVRefSource    = ADC_INT_VREF_SOURCE_EXACT;					// выбор источника опорного напряжения 1,23В от датчика температуры (точный)
 	sADCx.ADC_Prescaler        = ADC_CLK_div_4;
 	sADCx.ADC_DelayGo          = 0;
 	
 	ADC1_Init(&sADCx);
+	ADC2_Init(&sADCx);
 	// -------------
 	
-	ADC1_Cmd(ENABLE);
 	ADC1_ITConfig(ADCx_IT_END_OF_CONVERSION, ENABLE);						// Enable ADC1 EOCIF interupts 
-	NVIC->ISER[0] = (1<<ADC_IRQn);											// Enable ADC interrupt
-	
-	ADC1_Start();
+	ADC1_Cmd(ENABLE);
 	
 	while(1) {
 		
